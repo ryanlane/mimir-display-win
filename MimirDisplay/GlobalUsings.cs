@@ -1,0 +1,6 @@
+// Global usings shared across all files
+global using System.IO;
+global using System.Collections.Generic;
+global using System.Linq;
+global using System.Threading;
+global using System.Threading.Tasks;
