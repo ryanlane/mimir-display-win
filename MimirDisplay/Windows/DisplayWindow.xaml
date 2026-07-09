@@ -78,6 +78,8 @@
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="Toggle _Fullscreen" InputGestureText="F11" Click="MenuToggleFullscreen_Click"/>
+                <Separator/>
+                <MenuItem x:Name="MenuInfoOverlay" Header="Show _Info Overlay" IsCheckable="True" Click="MenuInfoOverlay_Click"/>
             </MenuItem>
             <MenuItem Header="_Help">
                 <MenuItem Header="_About" Click="MenuAbout_Click"/>
@@ -179,6 +181,73 @@
 
             </StackPanel>
         </Grid>
+
+        <!-- ── Info Overlay (toggleable metadata display) ──────────────────────── -->
+        <Border x:Name="InfoOverlay"
+                Grid.Row="1"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Margin="16"
+                Background="#DD1A1F22"
+                BorderBrush="#00E86A"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="12"
+                Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock Text="FILE INFO"
+                           FontSize="10"
+                           FontWeight="Bold"
+                           Foreground="#00E86A"
+                           Margin="0,0,0,8"/>
+
+                <TextBlock x:Name="InfoFileName"
+                           FontSize="11"
+                           FontFamily="Consolas"
+                           Foreground="White"
+                           TextWrapping="Wrap"
+                           MaxWidth="300"
+                           Margin="0,0,0,4"/>
+
+                <TextBlock x:Name="InfoFileSize"
+                           FontSize="11"
+                           FontFamily="Consolas"
+                           Foreground="#AAAAAA"
+                           Margin="0,0,0,4"/>
+
+                <TextBlock x:Name="InfoResolution"
+                           FontSize="11"
+                           FontFamily="Consolas"
+                           Foreground="#AAAAAA"
+                           Margin="0,0,0,4"/>
+
+                <TextBlock x:Name="InfoFormat"
+                           FontSize="11"
+                           FontFamily="Consolas"
+                           Foreground="#AAAAAA"
+                           Margin="0,0,0,4"/>
+
+                <TextBlock x:Name="InfoAnimation"
+                           FontSize="11"
+                           FontFamily="Consolas"
+                           Foreground="#AAAAAA"
+                           Margin="0,0,0,4"
+                           Visibility="Collapsed"/>
+
+                <TextBlock x:Name="InfoFPS"
+                           FontSize="11"
+                           FontFamily="Consolas"
+                           Foreground="#AAAAAA"
+                           Margin="0,0,0,4"
+                           Visibility="Collapsed"/>
+
+                <TextBlock x:Name="InfoLastUpdated"
+                           FontSize="9"
+                           FontFamily="Consolas"
+                           Foreground="#666666"
+                           Margin="0,8,0,0"/>
+            </StackPanel>
+        </Border>
 
     </Grid>
     </Grid>

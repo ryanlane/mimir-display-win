@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -40,6 +41,15 @@ public partial class DisplayWindow : Window
     private List<BitmapSource>? _webpFrames;
     private List<int>? _webpDelays;
     private int _currentFrameIndex = 0;
+
+    // Info overlay state
+    private bool _isInfoOverlayEnabled = false;
+    private string? _currentFilePath;
+    private long _currentFileSize;
+    private int _currentImageWidth;
+    private int _currentImageHeight;
+    private int _currentFrameCount;
+    private double _currentFps;
 
     public DisplayWindow(IOptions<DisplayConfig> config, ILogger<DisplayWindow> logger)
     {
@@ -171,6 +181,10 @@ public partial class DisplayWindow : Window
                 }
 
                 HideSplash();
+
+                // Update info overlay with new file details
+                UpdateInfoOverlay(filePath);
+
                 tcs.SetResult();
             }
             catch (Exception ex)
@@ -589,6 +603,172 @@ public partial class DisplayWindow : Window
 
         MessageBox.Show(message, "About Mimir Display",
             MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void MenuInfoOverlay_Click(object sender, RoutedEventArgs e)
+    {
+        _isInfoOverlayEnabled = MenuInfoOverlay.IsChecked;
+        UpdateInfoOverlayVisibility();
+        _logger.LogInformation("Info overlay {State}", _isInfoOverlayEnabled ? "enabled" : "disabled");
+    }
+
+    private void UpdateInfoOverlayVisibility()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            InfoOverlay.Visibility = _isInfoOverlayEnabled && !string.IsNullOrEmpty(_currentFilePath)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        });
+    }
+
+    private void UpdateInfoOverlay(string filePath)
+    {
+        if (!File.Exists(filePath))
+            return;
+
+        try
+        {
+            _currentFilePath = filePath;
+            var fileInfo = new FileInfo(filePath);
+            _currentFileSize = fileInfo.Length;
+
+            var ext = Path.GetExtension(filePath).ToLowerInvariant();
+
+            Dispatcher.Invoke(() =>
+            {
+                // File name
+                InfoFileName.Text = $"File: {Path.GetFileName(filePath)}";
+
+                // File size
+                InfoFileSize.Text = $"Size: {FormatFileSize(_currentFileSize)}";
+
+                // Format
+                var formatName = ext.TrimStart('.').ToUpperInvariant();
+                InfoFormat.Text = $"Format: {formatName}";
+
+                // Get image dimensions
+                try
+                {
+                    if (ext == ".webp")
+                    {
+                        // Use Magick.NET to get WebP info
+                        using var magickImageCollection = new MagickImageCollection(filePath);
+                        if (magickImageCollection.Count > 0)
+                        {
+                            var firstFrame = magickImageCollection[0];
+                            _currentImageWidth = (int)firstFrame.Width;
+                            _currentImageHeight = (int)firstFrame.Height;
+                            _currentFrameCount = magickImageCollection.Count;
+
+                            InfoResolution.Text = $"Resolution: {_currentImageWidth}x{_currentImageHeight}";
+
+                            if (_currentFrameCount > 1)
+                            {
+                                InfoAnimation.Text = $"Animation: {_currentFrameCount} frames";
+                                InfoAnimation.Visibility = Visibility.Visible;
+
+                                // Calculate average FPS
+                                if (_webpDelays != null && _webpDelays.Count > 0)
+                                {
+                                    var avgDelay = _webpDelays.Average();
+                                    _currentFps = avgDelay > 0 ? 1000.0 / avgDelay : 0;
+                                    InfoFPS.Text = $"FPS: {_currentFps:F1}";
+                                    InfoFPS.Visibility = Visibility.Visible;
+                                }
+                            }
+                            else
+                            {
+                                InfoAnimation.Visibility = Visibility.Collapsed;
+                                InfoFPS.Visibility = Visibility.Collapsed;
+                            }
+                        }
+                    }
+                    else if (ext == ".gif")
+                    {
+                        // Use Magick.NET for GIF info
+                        using var magickImageCollection = new MagickImageCollection(filePath);
+                        if (magickImageCollection.Count > 0)
+                        {
+                            var firstFrame = magickImageCollection[0];
+                            _currentImageWidth = (int)firstFrame.Width;
+                            _currentImageHeight = (int)firstFrame.Height;
+                            _currentFrameCount = magickImageCollection.Count;
+
+                            InfoResolution.Text = $"Resolution: {_currentImageWidth}x{_currentImageHeight}";
+
+                            if (_currentFrameCount > 1)
+                            {
+                                InfoAnimation.Text = $"Animation: {_currentFrameCount} frames";
+                                InfoAnimation.Visibility = Visibility.Visible;
+
+                                // Calculate average FPS from frame delays
+                                var delays = magickImageCollection.Select(f => (int)(f.AnimationDelay * 10)).ToList();
+                                if (delays.Count > 0)
+                                {
+                                    var avgDelay = delays.Average();
+                                    _currentFps = avgDelay > 0 ? 1000.0 / avgDelay : 0;
+                                    InfoFPS.Text = $"FPS: {_currentFps:F1}";
+                                    InfoFPS.Visibility = Visibility.Visible;
+                                }
+                            }
+                            else
+                            {
+                                InfoAnimation.Visibility = Visibility.Collapsed;
+                                InfoFPS.Visibility = Visibility.Collapsed;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Static image - use BitmapImage
+                        var bitmap = new BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.UriSource = new Uri(filePath, UriKind.Absolute);
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.EndInit();
+
+                        _currentImageWidth = bitmap.PixelWidth;
+                        _currentImageHeight = bitmap.PixelHeight;
+                        _currentFrameCount = 1;
+
+                        InfoResolution.Text = $"Resolution: {_currentImageWidth}x{_currentImageHeight}";
+                        InfoAnimation.Visibility = Visibility.Collapsed;
+                        InfoFPS.Visibility = Visibility.Collapsed;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to read image dimensions for info overlay");
+                    InfoResolution.Text = "Resolution: Unknown";
+                    InfoAnimation.Visibility = Visibility.Collapsed;
+                    InfoFPS.Visibility = Visibility.Collapsed;
+                }
+
+                // Last updated
+                InfoLastUpdated.Text = $"Updated: {DateTime.Now:HH:mm:ss}";
+
+                // Show overlay if enabled
+                UpdateInfoOverlayVisibility();
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update info overlay");
+        }
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
     }
 }
 
