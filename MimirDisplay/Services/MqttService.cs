@@ -64,11 +64,35 @@ public sealed class MqttService : IAsyncDisposable
     public void SetStatusTextCallback(Action<string> callback)
         => _onStatusText = callback;
 
+    private CancellationTokenSource? _resolutionPublishCts;
+
     public void UpdateResolution(int width, int height)
     {
+        if (width == _currentWidth && height == _currentHeight) return;
         _currentWidth = width;
         _currentHeight = height;
         _logger.LogDebug("Resolution updated to {Width}x{Height}", width, height);
+
+        // Republish the retained status (which carries capabilities.resolution)
+        // once the size settles — the server syncs it to the display record and
+        // re-renders content at the new size. Debounced: SizeChanged fires
+        // continuously during a window drag.
+        _resolutionPublishCts?.Cancel();
+        var cts = _resolutionPublishCts = new CancellationTokenSource();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(1000, cts.Token);
+                await PublishPresenceAsync(ct: cts.Token);
+                _logger.LogInformation("Published resolution change: {Width}x{Height}", width, height);
+            }
+            catch (OperationCanceledException) { /* superseded by a newer resize */ }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to publish resolution change");
+            }
+        });
     }
 
     /// <summary>
