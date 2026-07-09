@@ -73,6 +73,18 @@ Use the **MQTT Monitor** (Menu → MQTT Monitor) to verify capabilities are bein
    - Discovery announcements
    - Status/presence updates
 
+#### Copying MQTT Messages
+
+To copy message content from the MQTT Monitor:
+
+- **Right-click** a message and choose:
+  - **Copy Topic** - Copies just the MQTT topic
+  - **Copy Payload** - Copies the full message payload
+  - **Copy Full Message (JSON)** - Copies a formatted JSON representation
+  - **Copy All Selected** - Copies all selected messages in readable format
+- **Ctrl+C** - Quick copy of selected message(s)
+- **Select multiple messages** - Use Ctrl+Click or Shift+Click to select multiple messages before copying
+
 ### Check Server Database
 
 On the Mimir server, verify the display's capabilities are stored:

@@ -120,6 +120,72 @@ public partial class MqttMonitorWindow : Window
         _filteredMessages.Clear();
         UpdateStatus();
     }
+
+    private void MessageListBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        // Ctrl+C to copy
+        if (e.Key == System.Windows.Input.Key.C && 
+            (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) == System.Windows.Input.ModifierKeys.Control)
+        {
+            CopyAllSelected_Click(sender, e);
+            e.Handled = true;
+        }
+    }
+
+    private void CopyTopic_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageListBox.SelectedItem is MqttMessageViewModel vm)
+        {
+            Clipboard.SetText(vm.Topic);
+            StatusTextBlock.Text = "Topic copied to clipboard";
+        }
+    }
+
+    private void CopyPayload_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageListBox.SelectedItem is MqttMessageViewModel vm)
+        {
+            Clipboard.SetText(vm.Event.Payload);
+            StatusTextBlock.Text = $"Payload copied to clipboard ({vm.Event.PayloadSize} bytes)";
+        }
+    }
+
+    private void CopyFullMessage_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageListBox.SelectedItem is MqttMessageViewModel vm)
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                timestamp = vm.Timestamp.ToString("o"),
+                direction = vm.Direction,
+                topic = vm.Topic,
+                messageType = vm.MessageType,
+                payload = vm.Event.Payload,
+                payloadSize = vm.Event.PayloadSize
+            }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+
+            Clipboard.SetText(json);
+            StatusTextBlock.Text = "Full message copied to clipboard (JSON)";
+        }
+    }
+
+    private void CopyAllSelected_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = MessageListBox.SelectedItems.Cast<MqttMessageViewModel>().ToList();
+        if (selected.Count == 0)
+        {
+            StatusTextBlock.Text = "No messages selected";
+            return;
+        }
+
+        var text = string.Join("\n---\n", selected.Select(vm =>
+            $"[{vm.Timestamp:HH:mm:ss.fff}] {vm.Direction} | {vm.Topic}\n" +
+            $"Type: {vm.MessageType ?? "N/A"}\n" +
+            $"Payload ({vm.Event.PayloadSize} bytes):\n{vm.Event.Payload}"));
+
+        Clipboard.SetText(text);
+        StatusTextBlock.Text = $"Copied {selected.Count} message(s) to clipboard";
+    }
 }
 
 public class MqttMessageViewModel

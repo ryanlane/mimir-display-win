@@ -180,6 +180,7 @@ public sealed class MqttService : IAsyncDisposable
         {
             DeviceId = _topics.DeviceId,
             PairCode = PairCode,
+            ReplyTo = _topics.PairAck,
             Metadata = BuildMetadata(),
             Capabilities = BuildCapabilities(),
         };

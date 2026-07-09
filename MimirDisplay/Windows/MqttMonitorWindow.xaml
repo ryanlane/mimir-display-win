@@ -46,7 +46,21 @@
                  BorderThickness="0"
                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                 SelectionMode="Extended">
+                 SelectionMode="Extended"
+                 KeyDown="MessageListBox_KeyDown">
+            <ListBox.ContextMenu>
+                <ContextMenu Background="#2D2D30" Foreground="White">
+                    <MenuItem Header="Copy Topic" Click="CopyTopic_Click"
+                              Background="#2D2D30" Foreground="White"/>
+                    <MenuItem Header="Copy Payload" Click="CopyPayload_Click"
+                              Background="#2D2D30" Foreground="White"/>
+                    <MenuItem Header="Copy Full Message (JSON)" Click="CopyFullMessage_Click"
+                              Background="#2D2D30" Foreground="White"/>
+                    <Separator Background="#555"/>
+                    <MenuItem Header="Copy All Selected" Click="CopyAllSelected_Click"
+                              Background="#2D2D30" Foreground="White"/>
+                </ContextMenu>
+            </ListBox.ContextMenu>
             <ListBox.ItemTemplate>
                 <DataTemplate>
                     <Border Padding="8,6" BorderThickness="0,0,0,1" BorderBrush="#3E3E42">

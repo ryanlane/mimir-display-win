@@ -315,8 +315,15 @@ public sealed class PairRequest
     [JsonPropertyName("device_id")]
     public string DeviceId { get; set; } = string.Empty;
 
-    [JsonPropertyName("pair_code")]
+    // Canonical key per the MQTT compatibility spec §7.1 — the API expects
+    // "code" ("pair_code" is only a temporary server-side alias).
+    [JsonPropertyName("code")]
     public string PairCode { get; set; } = string.Empty;
+
+    // Where the API publishes the pair ack. Optional (the API defaults to
+    // mimir/<device_id>/pair/ack) but explicit is canonical.
+    [JsonPropertyName("reply_to")]
+    public string? ReplyTo { get; set; }
 
     [JsonPropertyName("metadata")]
     public DisplayMetadata? Metadata { get; set; }
