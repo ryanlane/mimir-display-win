@@ -1,11 +1,13 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimirDisplay.Configuration;
 using MimirDisplay.Services;
 using XamlAnimatedGif;
+using ImageMagick;
 
 namespace MimirDisplay.Windows;
 
@@ -32,6 +34,12 @@ public partial class DisplayWindow : Window
     private Action<int, int>? _onResolutionChanged;
     private int _lastReportedWidth = 0;
     private int _lastReportedHeight = 0;
+
+    // Animated WebP playback
+    private DispatcherTimer? _webpAnimationTimer;
+    private List<BitmapSource>? _webpFrames;
+    private List<int>? _webpDelays;
+    private int _currentFrameIndex = 0;
 
     public DisplayWindow(IOptions<DisplayConfig> config, ILogger<DisplayWindow> logger)
     {
@@ -136,7 +144,7 @@ public partial class DisplayWindow : Window
 
     /// <summary>
     /// Shows an image file fullscreen.
-    /// Handles PNG, JPEG, BMP, GIF (animated), and WebP (requires Windows codec).
+    /// Handles PNG, JPEG, BMP, GIF (animated), and WebP (animated and static).
     /// Returns when the image has been loaded and displayed.
     /// </summary>
     public Task ShowImageAsync(string filePath)
@@ -152,6 +160,10 @@ public partial class DisplayWindow : Window
                 if (ext == ".gif")
                 {
                     ShowAnimatedGif(filePath);
+                }
+                else if (ext == ".webp")
+                {
+                    ShowWebP(filePath);
                 }
                 else
                 {
@@ -188,6 +200,7 @@ public partial class DisplayWindow : Window
         // Stop any running animation
         AnimationBehavior.SetSourceUri(AnimatedImage, null!);
         AnimatedImage.Visibility = Visibility.Collapsed;
+        StopWebPAnimation();
 
         var bitmap = new BitmapImage();
         bitmap.BeginInit();
@@ -216,6 +229,7 @@ public partial class DisplayWindow : Window
     private void ShowAnimatedGif(string filePath)
     {
         ContentImage.Visibility = Visibility.Collapsed;
+        StopWebPAnimation(); // Stop any WebP animation
 
         AnimationBehavior.SetSourceUri(AnimatedImage, new Uri(filePath, UriKind.Absolute));
         AnimationBehavior.SetRepeatBehavior(AnimatedImage, System.Windows.Media.Animation.RepeatBehavior.Forever);
@@ -223,6 +237,114 @@ public partial class DisplayWindow : Window
             ? System.Windows.Media.Stretch.UniformToFill
             : System.Windows.Media.Stretch.Uniform;
         AnimatedImage.Visibility = Visibility.Visible;
+    }
+
+    private void ShowWebP(string filePath)
+    {
+        // Stop any running animation
+        AnimationBehavior.SetSourceUri(AnimatedImage, null!);
+        AnimatedImage.Visibility = Visibility.Collapsed;
+        StopWebPAnimation();
+
+        try
+        {
+            using var magickImageCollection = new MagickImageCollection(filePath);
+
+            if (magickImageCollection.Count > 1)
+            {
+                // Animated WebP
+                _logger.LogInformation("Loading animated WebP with {FrameCount} frames", magickImageCollection.Count);
+                ShowAnimatedWebP(magickImageCollection);
+            }
+            else
+            {
+                // Static WebP - use regular image loading
+                _logger.LogDebug("Loading static WebP");
+                ShowStaticImage(filePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load WebP, trying fallback");
+            // Fallback to static image loader (might work with Windows WebP codec)
+            ShowStaticImage(filePath);
+        }
+    }
+
+    private void ShowAnimatedWebP(MagickImageCollection frames)
+    {
+        _webpFrames = new List<BitmapSource>();
+        _webpDelays = new List<int>();
+
+        foreach (var frame in frames)
+        {
+            // Convert MagickImage to WPF BitmapSource
+            using var memoryStream = new MemoryStream();
+            frame.Write(memoryStream, MagickFormat.Png);
+            memoryStream.Position = 0;
+
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.StreamSource = memoryStream;
+            bitmap.EndInit();
+            bitmap.Freeze(); // Make it thread-safe
+
+            _webpFrames.Add(bitmap);
+
+            // Get frame delay in milliseconds (WebP uses centiseconds)
+            var delay = (int)(frame.AnimationDelay * 10); // Convert from centiseconds to milliseconds
+            _webpDelays.Add(delay > 0 ? delay : 100); // Minimum 100ms per frame
+        }
+
+        _currentFrameIndex = 0;
+        ContentImage.Source = _webpFrames[0];
+        ContentImage.Stretch = _config.HdmiScaleMode == "fill"
+            ? System.Windows.Media.Stretch.UniformToFill
+            : System.Windows.Media.Stretch.Uniform;
+        ContentImage.Visibility = Visibility.Visible;
+
+        // Start animation timer
+        _webpAnimationTimer = new DispatcherTimer(DispatcherPriority.Render);
+        _webpAnimationTimer.Interval = TimeSpan.FromMilliseconds(_webpDelays[0]);
+        _webpAnimationTimer.Tick += WebPAnimationTimer_Tick;
+        _webpAnimationTimer.Start();
+
+        _logger.LogInformation("Started animated WebP playback with {FrameCount} frames", _webpFrames.Count);
+    }
+
+    private void WebPAnimationTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_webpFrames == null || _webpDelays == null || _webpFrames.Count == 0)
+        {
+            StopWebPAnimation();
+            return;
+        }
+
+        _currentFrameIndex = (_currentFrameIndex + 1) % _webpFrames.Count;
+        ContentImage.Source = _webpFrames[_currentFrameIndex];
+
+        // Update timer interval for next frame
+        if (_webpAnimationTimer != null)
+        {
+            _webpAnimationTimer.Interval = TimeSpan.FromMilliseconds(_webpDelays[_currentFrameIndex]);
+        }
+    }
+
+    private void StopWebPAnimation()
+    {
+        if (_webpAnimationTimer != null)
+        {
+            _webpAnimationTimer.Stop();
+            _webpAnimationTimer.Tick -= WebPAnimationTimer_Tick;
+            _webpAnimationTimer = null;
+        }
+
+        _webpFrames?.Clear();
+        _webpFrames = null;
+        _webpDelays?.Clear();
+        _webpDelays = null;
+        _currentFrameIndex = 0;
     }
 
     private void HideSplash()
