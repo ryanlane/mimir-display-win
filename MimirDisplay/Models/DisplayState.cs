@@ -36,6 +36,12 @@ public sealed class DisplayState
     [JsonPropertyName("assigned_id")]
     public string? AssignedId { get; set; }
 
+    [JsonPropertyName("server_assigned_display_id")]
+    public string? ServerAssignedDisplayId { get; set; }
+
+    [JsonPropertyName("registration_key")]
+    public string? RegistrationKey { get; set; }
+
     [JsonPropertyName("updated_at")]
     public string UpdatedAt { get; set; } = DateTimeOffset.UtcNow.ToString("o");
 

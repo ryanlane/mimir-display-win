@@ -23,12 +23,23 @@ public partial class DisplayWindow : Window
     private WindowStyle _previousWindowStyle;
     private ResizeMode _previousResizeMode;
 
+    // Service references (set by orchestrator)
+    private MqttService? _mqttService;
+    private StateService? _stateService;
+    private MqttMonitorWindow? _mqttMonitorWindow;
+
+    // Resolution tracking
+    private Action<int, int>? _onResolutionChanged;
+    private int _lastReportedWidth = 0;
+    private int _lastReportedHeight = 0;
+
     public DisplayWindow(IOptions<DisplayConfig> config, ILogger<DisplayWindow> logger)
     {
         _config = config.Value;
         _logger = logger;
         InitializeComponent();
         Loaded += OnLoaded;
+        SizeChanged += OnSizeChanged;
 
         // Allow Escape to close in non-kiosk/debug scenarios
         KeyDown += (_, e) =>
@@ -58,6 +69,7 @@ public partial class DisplayWindow : Window
             ResizeMode = _previousResizeMode;
             Topmost = false;
             Cursor = System.Windows.Input.Cursors.Arrow;
+            AdminMenu.Visibility = Visibility.Visible;
             _isFullscreen = false;
             _logger.LogInformation("Exited fullscreen mode");
         }
@@ -73,6 +85,7 @@ public partial class DisplayWindow : Window
             ResizeMode = ResizeMode.NoResize;
             Topmost = true;
             Cursor = System.Windows.Input.Cursors.None;
+            AdminMenu.Visibility = Visibility.Collapsed;
             _isFullscreen = true;
             _logger.LogInformation("Entered fullscreen mode");
         }
@@ -91,12 +104,14 @@ public partial class DisplayWindow : Window
             Topmost = true;
             ShowInTaskbar = false;
             Cursor = System.Windows.Input.Cursors.None;
+            AdminMenu.Visibility = Visibility.Collapsed;
             _isFullscreen = true;
             _logger.LogInformation("Starting in fullscreen mode (MIMIR__FULLSCREEN=true)");
         }
         else
         {
             // Already configured in XAML, just log
+            AdminMenu.Visibility = Visibility.Visible;
             _logger.LogInformation("Starting in windowed mode. Press F11 to toggle fullscreen.");
         }
     }
@@ -243,4 +258,210 @@ public partial class DisplayWindow : Window
             _logger.LogDebug(ex, "Could not load logo");
         }
     }
+
+    // ── Menu handlers ─────────────────────────────────────────────────────────
+
+    public void SetServices(MqttService mqttService, StateService stateService)
+    {
+        _mqttService = mqttService;
+        _stateService = stateService;
+        UpdateMenuStatus();
+    }
+
+    public void SetResolutionCallback(Action<int, int> callback)
+    {
+        _onResolutionChanged = callback;
+        // Report current resolution immediately
+        ReportCurrentResolution();
+    }
+
+    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        ReportCurrentResolution();
+    }
+
+    private void ReportCurrentResolution()
+    {
+        if (_onResolutionChanged == null)
+            return;
+
+        // Use ActualWidth/Height for the content area
+        var width = (int)ActualWidth;
+        var height = (int)ActualHeight;
+
+        // Only report if resolution actually changed (avoid spam during resize drag)
+        if (width != _lastReportedWidth || height != _lastReportedHeight)
+        {
+            _lastReportedWidth = width;
+            _lastReportedHeight = height;
+            _logger.LogDebug("Window resolution changed to {Width}x{Height}", width, height);
+            _onResolutionChanged(width, height);
+        }
+    }
+
+    public (int Width, int Height) GetCurrentResolution()
+    {
+        return ((int)ActualWidth, (int)ActualHeight);
+    }
+
+    private void UpdateMenuStatus()
+    {
+        if (_mqttService != null)
+        {
+            MenuDeviceIdItem.Header = _mqttService.DeviceId ?? "(none)";
+            MenuConnectionStatusItem.Header = _mqttService.IsConnected ? "Connected" : "Disconnected";
+        }
+    }
+
+    private void MenuExit_Click(object sender, RoutedEventArgs e)
+    {
+        Application.Current.Shutdown();
+    }
+
+    private void MenuMqttMonitor_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (_mqttService == null)
+            {
+                MessageBox.Show("MQTT service not available", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                _logger.LogWarning("MQTT monitor clicked but service is null");
+                return;
+            }
+
+            if (_mqttMonitorWindow != null && _mqttMonitorWindow.IsLoaded)
+            {
+                _mqttMonitorWindow.Activate();
+                return;
+            }
+
+            _logger.LogInformation("Opening MQTT monitor window");
+            _mqttMonitorWindow = new MqttMonitorWindow(_mqttService)
+            {
+                Owner = this
+            };
+            _mqttMonitorWindow.Show();
+            _logger.LogInformation("MQTT monitor window opened successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open MQTT monitor window");
+            MessageBox.Show($"Failed to open MQTT monitor: {ex.Message}\n\nCheck logs for details.", 
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void MenuClearCache_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var cacheDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "MimirDisplay", "cache");
+
+            if (Directory.Exists(cacheDir))
+            {
+                var files = Directory.GetFiles(cacheDir);
+                foreach (var file in files)
+                {
+                    try { File.Delete(file); } catch { }
+                }
+
+                MessageBox.Show($"Cleared {files.Length} cached files", "Cache Cleared",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show("Cache directory not found", "Info",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Failed to clear cache: {ex.Message}", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void MenuViewLogs_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var logDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "MimirDisplay", "logs");
+
+            if (Directory.Exists(logDir))
+            {
+                System.Diagnostics.Process.Start("explorer.exe", logDir);
+            }
+            else
+            {
+                MessageBox.Show("Logs directory not found", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Failed to open logs: {ex.Message}", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void MenuSettings_Click(object sender, RoutedEventArgs e)
+    {
+        var settingsWindow = new SettingsWindow
+        {
+            Owner = this
+        };
+        settingsWindow.ShowDialog();
+    }
+
+    private void MenuResetPairing_Click(object sender, RoutedEventArgs e)
+    {
+        var result = MessageBox.Show(
+            "Reset pairing state? This will clear the stored device ID and registration key.\n\nThe display will need to be paired again on next restart.",
+            "Confirm Reset",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Yes && _stateService != null)
+        {
+            _stateService.Update(state =>
+            {
+                state.ServerAssignedDisplayId = null;
+                state.RegistrationKey = null;
+                state.Registered = false;
+            });
+
+            MessageBox.Show("Pairing state reset. Restart the application to pair again.",
+                "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private void MenuToggleFullscreen_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleFullscreen();
+    }
+
+    private void MenuAbout_Click(object sender, RoutedEventArgs e)
+    {
+        var version = System.Reflection.Assembly.GetExecutingAssembly()
+            .GetName().Version?.ToString() ?? "Unknown";
+
+        var deviceId = _mqttService?.DeviceId ?? "(none)";
+        var pairCode = _mqttService?.PairCode ?? "(none)";
+        var connected = _mqttService?.IsConnected == true ? "Yes" : "No";
+
+        var message = $"Mimir Display Client\n" +
+                      $"Version: {version}\n\n" +
+                      $"Device ID: {deviceId}\n" +
+                      $"Pair Code: {pairCode}\n" +
+                      $"Connected: {connected}\n\n" +
+                      $"© 2026 Mimir Project";
+
+        MessageBox.Show(message, "About Mimir Display",
+            MessageBoxButton.OK, MessageBoxImage.Information);
+    }
 }
+

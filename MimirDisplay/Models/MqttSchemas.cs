@@ -12,6 +12,7 @@ public enum CommandType
     Register,
     Ready,
     RegistrationComplete,
+    FinalizeRegistration,
     SetScene,
     ClearScene,
     Unknown
@@ -25,6 +26,7 @@ public static class CommandTypeNames
     public const string Register = "register";
     public const string Ready = "ready";
     public const string RegistrationComplete = "registration_complete";
+    public const string FinalizeRegistration = "finalize_registration";
     public const string SetScene = "set_scene";
     public const string ClearScene = "clear_scene";
 
@@ -36,6 +38,7 @@ public static class CommandTypeNames
         Register => CommandType.Register,
         Ready => CommandType.Ready,
         RegistrationComplete => CommandType.RegistrationComplete,
+        FinalizeRegistration => CommandType.FinalizeRegistration,
         SetScene => CommandType.SetScene,
         ClearScene => CommandType.ClearScene,
         _ => CommandType.Unknown
@@ -82,6 +85,16 @@ public sealed class MqttCommand
 
     [JsonPropertyName("refresh_interval_s")]
     public int? RefreshIntervalSeconds { get; set; }
+
+    // Finalize registration fields
+    [JsonPropertyName("display_id")]
+    public string? DisplayId { get; set; }
+
+    [JsonPropertyName("registration_key")]
+    public string? RegistrationKey { get; set; }
+
+    [JsonPropertyName("config")]
+    public Dictionary<string, object>? Config { get; set; }
 
     public string? GetImageUrl() => ImageUrl ?? Url;
 

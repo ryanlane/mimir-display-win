@@ -30,6 +30,10 @@ public sealed class MqttService : IAsyncDisposable
     private Func<string, Dictionary<string, object>, Task>? _onDisplayImage;
     private Action<string>? _onStatusText;
 
+    // Current window resolution (updated dynamically)
+    private int _currentWidth = 1920;
+    private int _currentHeight = 1080;
+
     public string? DeviceId => _topics?.DeviceId;
     public bool IsConnected => _client?.IsConnected ?? false;
 
@@ -38,6 +42,9 @@ public sealed class MqttService : IAsyncDisposable
 
     // Pair code shown on the splash screen
     public string PairCode { get; } = GeneratePairCode();
+
+    // MQTT message monitoring event
+    public event EventHandler<MqttMessageEvent>? MessageReceived;
 
     public MqttService(
         IOptions<DisplayConfig> config,
@@ -56,6 +63,13 @@ public sealed class MqttService : IAsyncDisposable
 
     public void SetStatusTextCallback(Action<string> callback)
         => _onStatusText = callback;
+
+    public void UpdateResolution(int width, int height)
+    {
+        _currentWidth = width;
+        _currentHeight = height;
+        _logger.LogDebug("Resolution updated to {Width}x{Height}", width, height);
+    }
 
     /// <summary>
     /// Connects to the MQTT broker and starts the receive loop.
@@ -254,6 +268,9 @@ public sealed class MqttService : IAsyncDisposable
 
         _logger.LogDebug("MQTT message received on {Topic}", topic);
 
+        // Raise monitoring event
+        RaiseMessageEvent(MqttMessageDirection.Received, topic, payload);
+
         if (_topics == null) return;
 
         if (topic == _topics.RegistrationReply)
@@ -271,6 +288,16 @@ public sealed class MqttService : IAsyncDisposable
 
         if (topic == _topics.Commands)
         {
+            // Try to extract command type for monitoring
+            string? cmdType = null;
+            try
+            {
+                var cmd = JsonSerializer.Deserialize<MqttCommand>(payload);
+                cmdType = cmd?.Type;
+            }
+            catch { /* ignore */ }
+
+            RaiseMessageEvent(MqttMessageDirection.Received, topic, payload, cmdType);
             await HandleCommandAsync(payload);
         }
     }
@@ -333,6 +360,9 @@ public sealed class MqttService : IAsyncDisposable
                 break;
             case CommandType.Refresh:
                 await HandleRefreshAsync(cmd);
+                break;
+            case CommandType.FinalizeRegistration:
+                await HandleFinalizeRegistrationAsync(cmd);
                 break;
             case CommandType.Ready:
             case CommandType.Register:
@@ -400,6 +430,36 @@ public sealed class MqttService : IAsyncDisposable
         return PublishAckAsync(cmd.AssignmentId, null, ok: true, message: "Refresh acknowledged");
     }
 
+    private async Task HandleFinalizeRegistrationAsync(MqttCommand cmd)
+    {
+        _logger.LogInformation("Received finalize_registration: display_id={DisplayId}, has_key={HasKey}, has_config={HasConfig}",
+            cmd.DisplayId ?? "(none)", 
+            !string.IsNullOrWhiteSpace(cmd.RegistrationKey),
+            cmd.Config != null);
+
+        if (string.IsNullOrWhiteSpace(cmd.DisplayId))
+        {
+            _logger.LogWarning("finalize_registration missing display_id");
+            return;
+        }
+
+        // Store the server-assigned display_id and registration_key
+        _state.Update(state =>
+        {
+            state.ServerAssignedDisplayId = cmd.DisplayId;
+            state.RegistrationKey = cmd.RegistrationKey;
+            state.Registered = true;
+        });
+
+        _logger.LogInformation("Registration finalized: display_id={DisplayId} stored", cmd.DisplayId);
+
+        // Update status
+        _onStatusText?.Invoke($"Registered as {cmd.DisplayId}");
+
+        // Acknowledge
+        await PublishAckAsync(cmd.AssignmentId, null, ok: true, message: "Registration finalized");
+    }
+
     // ── Download + display pipeline ───────────────────────────────────────────
 
     private async Task DownloadAndDisplayAsync(
@@ -458,6 +518,8 @@ public sealed class MqttService : IAsyncDisposable
             .WithRetainFlag(true)
             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
             .Build(), ct);
+
+        RaiseMessageEvent(MqttMessageDirection.Sent, _topics.Status, json, "presence");
     }
 
     private async Task PublishHeartbeatAsync(CancellationToken ct)
@@ -473,6 +535,8 @@ public sealed class MqttService : IAsyncDisposable
             .WithPayload(payload)
             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
             .Build(), ct);
+
+        RaiseMessageEvent(MqttMessageDirection.Sent, _topics.Heartbeat, payload, "heartbeat");
     }
 
     private async Task PublishAckAsync(
@@ -577,7 +641,11 @@ public sealed class MqttService : IAsyncDisposable
 
     private DisplayCapabilities BuildCapabilities()
     {
-        var (w, h) = GetScreenResolution();
+        // Use current window resolution if available, otherwise fall back to screen resolution
+        var (w, h) = _currentWidth > 0 && _currentHeight > 0 
+            ? (_currentWidth, _currentHeight) 
+            : GetScreenResolution();
+
         return new DisplayCapabilities
         {
             Backend = "windows",
@@ -643,6 +711,25 @@ public sealed class MqttService : IAsyncDisposable
         var bytes = new byte[6];
         rng.GetBytes(bytes);
         return new string(bytes.Select(b => chars[b % chars.Length]).ToArray());
+    }
+
+    private void RaiseMessageEvent(MqttMessageDirection direction, string topic, string payload, string? messageType = null)
+    {
+        try
+        {
+            MessageReceived?.Invoke(this, new MqttMessageEvent
+            {
+                Direction = direction,
+                Topic = topic,
+                Payload = payload,
+                PayloadSize = Encoding.UTF8.GetByteCount(payload),
+                MessageType = messageType
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to raise MQTT message event");
+        }
     }
 
     // ── Extension helpers ─────────────────────────────────────────────────────

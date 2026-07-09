@@ -79,6 +79,9 @@ public sealed class DisplayOrchestrator : BackgroundService
         var mqttPort = _config.MqttBrokerPort;
         var platformUrl = _config.PlatformUrl;
 
+        _logger.LogInformation("Config loaded - MqttBrokerHost: {MqttHost}, PlatformUrl: {PlatformUrl}", 
+            mqttHost ?? "(empty)", platformUrl ?? "(empty)");
+
         if (savedState.MqttOverride?.Host != null)
         {
             mqttHost = savedState.MqttOverride.Host;
