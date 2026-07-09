@@ -658,6 +658,8 @@ public sealed class MqttService : IAsyncDisposable
                 "portrait_right" => 270,
                 _ => 0,
             },
+            SupportedFormats = ["png", "jpeg", "jpg", "bmp", "gif", "webp"],
+            SupportsAnimation = true,  // This Windows display supports animated WebP and GIF
         };
     }
 
