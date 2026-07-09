@@ -11,6 +11,16 @@
     <Version>1.0.0</Version>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <Configurations>Debug;Release</Configurations>
+
+    <!-- Application icon (place mimir.ico in Resources\ folder) -->
+    <ApplicationIcon Condition="Exists('Resources\mimir.ico')">Resources\mimir.ico</ApplicationIcon>
+
+    <!-- Assembly metadata -->
+    <Company>Mimir</Company>
+    <Product>Mimir Display Client</Product>
+    <Description>Mimir smart display client for Windows</Description>
+    <Copyright>Copyright © 2026</Copyright>
+
     <!-- Self-contained publish -->
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
