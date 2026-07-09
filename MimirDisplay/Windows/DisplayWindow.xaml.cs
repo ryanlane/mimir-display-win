@@ -252,7 +252,12 @@ public partial class DisplayWindow : Window
 
             if (magickImageCollection.Count > 1)
             {
-                // Animated WebP
+                // Animated WebP frames are stored as deltas (only the changed
+                // region, composited over the previous frame). Coalesce()
+                // flattens every frame to a full canvas — without it, playback
+                // shows only the changing parts.
+                magickImageCollection.Coalesce();
+
                 _logger.LogInformation("Loading animated WebP with {FrameCount} frames", magickImageCollection.Count);
                 ShowAnimatedWebP(magickImageCollection);
             }

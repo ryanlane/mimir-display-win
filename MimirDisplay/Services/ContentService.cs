@@ -77,7 +77,14 @@ public sealed class ContentService
 
                 resp.EnsureSuccessStatusCode();
 
-                var ext = GetExtensionFromContentType(resp.Content.Headers.ContentType?.MediaType) ?? ".img";
+                // Content-Type is preferred, but fall back to the URL's own
+                // extension — servers on Python < 3.13 served .webp as
+                // text/plain, which routed animated WebP to the static
+                // renderer (frame 0 only). DisplayWindow picks its decoder
+                // from this file extension.
+                var ext = GetExtensionFromContentType(resp.Content.Headers.ContentType?.MediaType)
+                          ?? GetExtensionFromUrl(url)
+                          ?? ".img";
                 var finalPath = Path.Combine(_cacheDir, cacheKey + ext);
 
                 await using var fs = new FileStream(finalPath, FileMode.Create, FileAccess.Write, FileShare.None);
@@ -154,4 +161,18 @@ public sealed class ContentService
         "image/bmp" => ".bmp",
         _ => null
     };
+
+    /// <summary>Extension from the URL path, if it's a known image type.</summary>
+    private static string? GetExtensionFromUrl(string url)
+    {
+        try
+        {
+            var ext = Path.GetExtension(new Uri(url).AbsolutePath).ToLowerInvariant();
+            return ImageExtensions.Contains(ext) ? ext : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }
