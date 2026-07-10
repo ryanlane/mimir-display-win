@@ -137,3 +137,21 @@ Logs are written to:
 ## License
 
 MIT
+
+---
+
+## Documentation
+
+Additional docs are in the [`docs/`](docs/) folder:
+
+| File | Description |
+|------|-------------|
+| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and fixes |
+| [PAIRING-GUIDE.md](docs/PAIRING-GUIDE.md) | How display pairing works |
+| [DISCOVERY.md](docs/DISCOVERY.md) | mDNS / server auto-discovery |
+| [SERVER-DISCOVERY-GUIDE.md](docs/SERVER-DISCOVERY-GUIDE.md) | Server-side discovery details |
+| [MQTT-SPEC-COMPLIANCE.md](docs/MQTT-SPEC-COMPLIANCE.md) | MQTT protocol notes |
+| [ANIMATION-SUPPORT.md](docs/ANIMATION-SUPPORT.md) | Animated GIF / WebP support |
+| [INFO-OVERLAY-FEATURE.md](docs/INFO-OVERLAY-FEATURE.md) | In-window info overlay |
+| [SINGLE-FILE-DEPLOYMENT.md](docs/SINGLE-FILE-DEPLOYMENT.md) | Single-file publish guide |
+| [ICON-AND-INSTALLER-GUIDE.md](docs/ICON-AND-INSTALLER-GUIDE.md) | App icon and Inno Setup installer |

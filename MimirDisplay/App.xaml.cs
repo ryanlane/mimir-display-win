@@ -39,6 +39,12 @@ public partial class App : Application
                 Shutdown();
                 return;
             }
+
+            // Restart so the freshly-written .env is loaded from scratch.
+            var exe = Environment.ProcessPath ?? System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName;
+            System.Diagnostics.Process.Start(exe);
+            Shutdown();
+            return;
         }
 
         // Configure Serilog early so startup messages are captured

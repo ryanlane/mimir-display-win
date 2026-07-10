@@ -1,0 +1,151 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Dark-theme ComboBox styles.
+        Merge this dictionary into any Window that uses ComboBoxes so the
+        dropdown popup is never drawn with system (light) colors.
+    -->
+
+    <!-- ── ComboBoxItem ──────────────────────────────────────────────────── -->
+    <Style x:Key="DarkComboBoxItem" TargetType="ComboBoxItem">
+        <Setter Property="Background"   Value="Transparent"/>
+        <Setter Property="Foreground"   Value="White"/>
+        <Setter Property="Padding"      Value="8,5"/>
+        <Setter Property="FontSize"     Value="13"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#3E3E42"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#094D5C"/>
+                            <Setter Property="Foreground" Value="#4EC9B0"/>
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsSelected"     Value="True"/>
+                                <Condition Property="IsHighlighted"  Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Bd" Property="Background" Value="#0E6070"/>
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Toggle button inside the ComboBox (the field + arrow) ────────── -->
+    <ControlTemplate x:Key="DarkComboToggleButton" TargetType="ToggleButton">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="20"/>
+            </Grid.ColumnDefinitions>
+            <Border x:Name="Border"
+                    Grid.ColumnSpan="2"
+                    Background="#3E3E42"
+                    BorderBrush="#555555"
+                    BorderThickness="1"
+                    CornerRadius="0"/>
+            <!-- Arrow -->
+            <Path x:Name="Arrow"
+                  Grid.Column="1"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  Data="M 0 0 L 4 4 L 8 0 Z"
+                  Fill="#AAAAAA"/>
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Border" Property="Background"   Value="#505054"/>
+                <Setter TargetName="Border" Property="BorderBrush"  Value="#777"/>
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Border" Property="Background"   Value="#505054"/>
+                <Setter TargetName="Border" Property="BorderBrush"  Value="#4EC9B0"/>
+                <Setter TargetName="Arrow"  Property="Fill"         Value="#4EC9B0"/>
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <!-- ── ComboBox ─────────────────────────────────────────────────────── -->
+    <Style x:Key="DarkComboBox" TargetType="ComboBox">
+        <Setter Property="Background"        Value="#3E3E42"/>
+        <Setter Property="Foreground"        Value="White"/>
+        <Setter Property="BorderBrush"       Value="#555555"/>
+        <Setter Property="BorderThickness"   Value="1"/>
+        <Setter Property="Padding"           Value="8,6"/>
+        <Setter Property="FontSize"          Value="13"/>
+        <Setter Property="ItemContainerStyle" Value="{StaticResource DarkComboBoxItem}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <!-- The collapsed "button" row -->
+                        <ToggleButton x:Name="ToggleButton"
+                                      Template="{StaticResource DarkComboToggleButton}"
+                                      IsChecked="{Binding Path=IsDropDownOpen,
+                                                          RelativeSource={RelativeSource TemplatedParent},
+                                                          Mode=TwoWay}"
+                                      Focusable="False"
+                                      ClickMode="Press"/>
+
+                        <!-- Selected item text -->
+                        <ContentPresenter x:Name="ContentSite"
+                                          IsHitTestVisible="False"
+                                          Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                          Margin="9,0,24,0"
+                                          VerticalAlignment="Center"
+                                          HorizontalAlignment="Left"
+                                          TextBlock.Foreground="White"/>
+
+                        <!-- Editable text box (not used but required by template) -->
+                        <TextBox x:Name="PART_EditableTextBox"
+                                 Visibility="Hidden"
+                                 IsReadOnly="{TemplateBinding IsReadOnly}"/>
+
+                        <!-- Drop-down popup -->
+                        <Popup x:Name="Popup"
+                               Placement="Bottom"
+                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                               AllowsTransparency="True"
+                               Focusable="False"
+                               PopupAnimation="Slide">
+                            <Grid x:Name="DropDown"
+                                  SnapsToDevicePixels="True"
+                                  MinWidth="{TemplateBinding ActualWidth}"
+                                  MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                <Border x:Name="DropDownBorder"
+                                        Background="#2D2D30"
+                                        BorderBrush="#555555"
+                                        BorderThickness="1"/>
+                                <ScrollViewer Margin="0,1"
+                                              SnapsToDevicePixels="True">
+                                    <StackPanel IsItemsHost="True"
+                                                KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                </ScrollViewer>
+                            </Grid>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>
