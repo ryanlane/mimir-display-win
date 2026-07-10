@@ -1,6 +1,8 @@
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
@@ -19,6 +21,10 @@ namespace MimirDisplay.Windows;
 /// </summary>
 public partial class DisplayWindow : Window
 {
+    // Win32: returns the inner client-area rectangle (no title bar, no frame)
+    // in physical pixels. This is the same geometry Electron's getContentSize() reports.
+    [DllImport("user32.dll")] private static extern bool GetClientRect(IntPtr hWnd, out RECT rect);
+    [StructLayout(LayoutKind.Sequential)] private struct RECT { public int Left, Top, Right, Bottom; }
     private readonly DisplayConfig _config;
     private readonly ILogger<DisplayWindow> _logger;
     private bool _isFullscreen = false;
@@ -426,22 +432,32 @@ public partial class DisplayWindow : Window
         if (_onResolutionChanged == null)
             return;
 
-        // Use ActualWidth/Height for the content area
-        var width = (int)ActualWidth;
-        var height = (int)ActualHeight;
+        // Use Win32 GetClientRect to get the inner content area in physical pixels.
+        // This matches Electron's win.getContentSize() semantics: no title bar, no
+        // OS frame, and already in physical (not DIP) coordinates.
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero || !GetClientRect(hwnd, out var rect))
+            return;
 
-        // Only report if resolution actually changed (avoid spam during resize drag)
+        var width  = rect.Right  - rect.Left;
+        var height = rect.Bottom - rect.Top;
+
+        // Only report if the value actually changed (avoid spam during resize drag)
         if (width != _lastReportedWidth || height != _lastReportedHeight)
         {
-            _lastReportedWidth = width;
+            _lastReportedWidth  = width;
             _lastReportedHeight = height;
-            _logger.LogDebug("Window resolution changed to {Width}x{Height}", width, height);
+            _logger.LogDebug("Content area resolution: {Width}x{Height} px (Win32 GetClientRect)",
+                width, height);
             _onResolutionChanged(width, height);
         }
     }
 
     public (int Width, int Height) GetCurrentResolution()
     {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd != IntPtr.Zero && GetClientRect(hwnd, out var rect))
+            return (rect.Right - rect.Left, rect.Bottom - rect.Top);
         return ((int)ActualWidth, (int)ActualHeight);
     }
 

@@ -1,0 +1,131 @@
+name: Release
+
+# Triggered by pushing a version tag: git tag v1.2.3 && git push origin v1.2.3
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write   # needed to create the GitHub Release and upload assets
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Parse version from tag (strips leading "v") ─────────────────────────
+      - name: Set version
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"           # e.g. v1.2.3
+          $ver = $tag.TrimStart('v')                 # e.g. 1.2.3
+          echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+          echo "TAG=$tag"     >> $env:GITHUB_OUTPUT
+
+      # ── Stamp version into the .csproj so the EXE carries the right version ─
+      - name: Stamp version in csproj
+        shell: pwsh
+        run: |
+          $ver  = "${{ steps.version.outputs.VERSION }}"
+          $file = "MimirDisplay\MimirDisplay.csproj"
+          $content = Get-Content $file -Raw
+          $content = $content -replace '<Version>[^<]+</Version>', "<Version>$ver</Version>"
+          Set-Content $file $content -Encoding UTF8
+          Write-Host "Stamped version $ver into $file"
+
+      # ── Setup .NET 8 ────────────────────────────────────────────────────────
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      # ── Restore NuGet packages ───────────────────────────────────────────────
+      - name: Restore
+        run: dotnet restore MimirDisplay\MimirDisplay.csproj
+
+      # ── Publish single-file self-contained EXE ──────────────────────────────
+      - name: Publish
+        shell: pwsh
+        run: |
+          dotnet publish MimirDisplay\MimirDisplay.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:PublishReadyToRun=false `
+            -p:PublishTrimmed=false `
+            -o publish
+
+      # ── Copy .env.example into publish folder (installer picks it up) ────────
+      - name: Copy env example to publish
+        shell: pwsh
+        run: Copy-Item "MimirDisplay\.env.example" "publish\.env.example" -Force
+
+      # ── Install Inno Setup 6 ─────────────────────────────────────────────────
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      # ── Compile installer ────────────────────────────────────────────────────
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          $ver  = "${{ steps.version.outputs.VERSION }}"
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc /DMyAppVersion=$ver MimirDisplaySetup.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC.exe failed with exit code $LASTEXITCODE" }
+
+      # ── Rename portable EXE for the release ─────────────────────────────────
+      - name: Rename portable EXE
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.version.outputs.VERSION }}"
+          Copy-Item "publish\MimirDisplay.exe" `
+                    "publish\MimirDisplay-$ver-portable.exe"
+
+      # ── Generate release notes from git log ──────────────────────────────────
+      - name: Generate release notes
+        id: notes
+        shell: pwsh
+        run: |
+          # Get commits since the previous tag (or all commits if first release)
+          $prevTag = git tag --sort=-version:refname | Select-Object -Skip 1 -First 1
+          if ($prevTag) {
+            $log = git log "$prevTag..HEAD" --oneline --no-merges
+          } else {
+            $log = git log --oneline --no-merges | Select-Object -First 20
+          }
+          $body = "## What's Changed`n`n"
+          foreach ($line in $log) { $body += "- $line`n" }
+          $body += "`n---`n`n"
+          $body += "## Downloads`n`n"
+          $body += "| File | Description |`n"
+          $body += "|------|-------------|`n"
+          $ver = "${{ steps.version.outputs.VERSION }}"
+          $body += "| ``MimirDisplaySetup-$ver.exe`` | Installer (recommended) |`n"
+          $body += "| ``MimirDisplay-$ver-portable.exe`` | Portable single-file EXE |`n"
+          $body += "`n**First run:** Edit ``{install dir}\.env`` with your MQTT broker details."
+          # Write to a temp file to avoid quoting issues
+          $body | Set-Content "release-notes.md" -Encoding UTF8
+          echo "NOTES_FILE=release-notes.md" >> $env:GITHUB_OUTPUT
+
+      # ── Create GitHub Release and upload assets ───────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.TAG }}
+          name: "Mimir Display ${{ steps.version.outputs.VERSION }}"
+          body_path: ${{ steps.notes.outputs.NOTES_FILE }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}  # v1.0.0-beta → prerelease
+          files: |
+            installer-output/MimirDisplaySetup-${{ steps.version.outputs.VERSION }}.exe
+            publish/MimirDisplay-${{ steps.version.outputs.VERSION }}-portable.exe

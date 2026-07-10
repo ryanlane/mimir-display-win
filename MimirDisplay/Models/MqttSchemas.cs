@@ -193,7 +193,34 @@ public sealed class ErrorEvent
     public string Timestamp { get; set; } = DateTimeOffset.UtcNow.ToString("o");
 }
 
-// ── Registration schemas ──────────────────────────────────────────────────────
+public sealed class PresenceEvent
+{
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "presence";
+
+    [JsonPropertyName("device_id")]
+    public string DeviceId { get; set; } = string.Empty;
+
+    [JsonPropertyName("uptime_s")]
+    public long UptimeSeconds { get; set; }
+
+    [JsonPropertyName("capabilities")]
+    public DisplayCapabilities Capabilities { get; set; } = new();
+
+    [JsonPropertyName("status")]
+    public PresenceStatus Status { get; set; } = new();
+
+    [JsonPropertyName("timestamp")]
+    public string Timestamp { get; set; } = DateTimeOffset.UtcNow.ToString("o");
+}
+
+public sealed class PresenceStatus
+{
+    [JsonPropertyName("online")]
+    public bool Online { get; set; } = true;
+}
+
+// ── Registration schemas
 
 public sealed class RegistrationRequest
 {

@@ -18,6 +18,12 @@ artifacts/
 # Publish output
 publish/
 
+# Installer output
+installer-output/
+
+# Release notes temp file
+release-notes.md
+
 # .env (contains secrets — copy from .env.example)
 .env
 

@@ -1,80 +1,115 @@
-; Mimir Display Installer Script for Inno Setup
-; Download Inno Setup from: https://jrsoftware.org/isdl.php
-; 
-; INSTRUCTIONS:
-; 1. Install Inno Setup
-; 2. Run .\publish-single-file.ps1 to create the single-file EXE
-; 3. Replace {YOUR-GUID-HERE} below with a new GUID
-; 4. Open this file in Inno Setup Compiler
-; 5. Click Build → Compile to create setup.exe
+; Mimir Display — Inno Setup 6 installer script
+;
+; HOW TO BUILD LOCALLY:
+;   1. Install Inno Setup 6: https://jrsoftware.org/isdl.php
+;   2. Run: .\publish-single-file.ps1        (creates publish\ folder)
+;   3. Open this file in Inno Setup Compiler and press Ctrl+F9
+;      — or from the command line:
+;        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" MimirDisplaySetup.iss
+;   Output: installer-output\MimirDisplaySetup-<version>.exe
+;
+; VERSION: set MyAppVersion below (or pass /DMyAppVersion=x.y.z on the CLI).
+; The GitHub Actions workflow passes the tag version automatically.
 
-#define MyAppName "Mimir Display"
-#define MyAppVersion "1.0.0"
+#ifndef MyAppVersion
+  #define MyAppVersion "1.0.0"
+#endif
+
+#define MyAppName      "Mimir Display"
 #define MyAppPublisher "Mimir"
-#define MyAppURL "https://github.com/yourusername/mimir-display-win"
-#define MyAppExeName "MimirDisplay.exe"
-
-; Single-file publish output folder
-#define SourcePath "publish"
+#define MyAppURL       "https://github.com/ryanmimircloud/mimir-display-win"
+#define MyAppExeName   "MimirDisplay.exe"
+#define SourcePath     "publish"
 
 [Setup]
-; NOTE: The value of AppId uniquely identifies this application.
-; Do not use the same AppId value in installers for other applications.
-; Generate a new GUID here: https://www.guidgenerator.com/
-AppId={{YOUR-GUID-HERE}
+; AppId uniquely identifies this application — do NOT change after first release.
+AppId={{BCD9AA7D-D6B9-4CDE-8BF3-4F42CA6D42E8}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
-AppSupportURL={#MyAppURL}
-AppUpdatesURL={#MyAppURL}
+AppSupportURL={#MyAppURL}/issues
+AppUpdatesURL={#MyAppURL}/releases
+
+; Install to Program Files without requiring elevation (per-user or per-machine)
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
-AllowNoIcons=yes
-; Uncomment the following line to run in non-administrative install mode
-; (install for current user only.)
 PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
+
+; Output
 OutputDir=installer-output
-OutputBaseFilename=MimirDisplaySetup
+OutputBaseFilename=MimirDisplaySetup-{#MyAppVersion}
 SetupIconFile=MimirDisplay\Resources\mimir.ico
-Compression=lzma
-SolidCompression=yes
-WizardStyle=modern
 UninstallDisplayIcon={app}\{#MyAppExeName}
+
+; Compression
+Compression=lzma2/ultra64
+SolidCompression=yes
+
+; UI
+WizardStyle=modern
+DisableWelcomePage=no
+LicenseFile=
+
+; Min Windows version: Windows 10 (10.0)
+MinVersion=10.0
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 6.1; Check: not IsAdminInstallMode
+Name: "desktopicon";   Description: "{cm:CreateDesktopIcon}";         GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "startupentry";  Description: "Start Mimir Display when Windows starts"; GroupDescription: "Startup:"; Flags: unchecked
 
 [Files]
-; Single-file executable (contains all DLLs and dependencies)
+; ── Main executable (single-file, self-contained — no separate DLLs needed) ──
 Source: "{#SourcePath}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
-; Configuration files
-Source: "{#SourcePath}\.env"; DestDir: "{app}"; Flags: ignoreversion confirmoverwrite
-Source: "{#SourcePath}\appsettings.json"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('{#SourcePath}\appsettings.json'))
+; ── Default configuration (appsettings.json) ──
+; Always install the base settings; preserve any user edits on upgrade.
+Source: "{#SourcePath}\appsettings.json"; DestDir: "{app}"; \
+  Flags: ignoreversion onlyifdoesntexist
 
-; NOTE: When using PublishSingleFile=true, you only need the .exe and config files.
-; All DLLs are bundled inside MimirDisplay.exe
+; ── Environment template (.env.example → .env if not already present) ──
+; Ships the example file; the Code section copies it to .env on first install.
+Source: "MimirDisplay\.env.example"; DestDir: "{app}"; \
+  DestName: ".env.example"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
-Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: quicklaunchicon
+Name: "{group}\{#MyAppName}";                        Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{cm:UninstallProgram,{#MyAppName}}";  Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#MyAppName}";                  Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+[Registry]
+; Run-at-startup via HKCU (no elevation required)
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
+  ValueType: string; ValueName: "{#MyAppName}"; \
+  ValueData: """{app}\{#MyAppExeName}"""; \
+  Flags: uninsdeletevalue; Tasks: startupentry
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+; Offer to launch after install
+Filename: "{app}\{#MyAppExeName}"; \
+  Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; \
+  Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
+; Remove log/cache/state directories written by the app
 Type: filesandordirs; Name: "{localappdata}\MimirDisplay"
 
 [Code]
-function FileExists(const FileName: string): Boolean;
+// On first install, copy .env.example → .env so the app has a writable config.
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  EnvExample, EnvDest: string;
 begin
-  Result := FileOrDirExists(FileName);
+  if CurStep = ssPostInstall then
+  begin
+    EnvExample := ExpandConstant('{app}\.env.example');
+    EnvDest    := ExpandConstant('{app}\.env');
+    if FileExists(EnvExample) and not FileExists(EnvDest) then
+      FileCopy(EnvExample, EnvDest, False);
+  end;
 end;

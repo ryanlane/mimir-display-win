@@ -65,6 +65,7 @@ public sealed class MqttService : IAsyncDisposable
         => _onStatusText = callback;
 
     private CancellationTokenSource? _resolutionPublishCts;
+    private readonly long _startedAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     public void UpdateResolution(int width, int height)
     {
@@ -85,6 +86,7 @@ public sealed class MqttService : IAsyncDisposable
             {
                 await Task.Delay(1000, cts.Token);
                 await PublishPresenceAsync(ct: cts.Token);
+                await PublishPresenceEventAsync(cts.Token);
                 _logger.LogInformation("Published resolution change: {Width}x{Height}", width, height);
             }
             catch (OperationCanceledException) { /* superseded by a newer resize */ }
@@ -545,6 +547,26 @@ public sealed class MqttService : IAsyncDisposable
             .Build(), ct);
 
         RaiseMessageEvent(MqttMessageDirection.Sent, _topics.Status, json, "presence");
+    }
+
+    /// <summary>
+    /// Publishes a <c>presence</c> event to the evt topic. The server's presence
+    /// service reacts to this by re-rendering content at the current capabilities
+    /// (including resolution), which is how Electron triggers a new image after resize.
+    /// </summary>
+    private async Task PublishPresenceEventAsync(CancellationToken ct = default)
+    {
+        if (_client?.IsConnected != true || _topics == null) return;
+        var evt = new PresenceEvent
+        {
+            DeviceId    = _topics.DeviceId,
+            UptimeSeconds = (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - _startedAtMs) / 1000,
+            Capabilities = BuildCapabilities(),
+            Status = new PresenceStatus { Online = true },
+        };
+        await PublishEventAsync(evt);
+        RaiseMessageEvent(MqttMessageDirection.Sent, _topics.Events,
+            System.Text.Json.JsonSerializer.Serialize(evt), "presence_event");
     }
 
     private async Task PublishHeartbeatAsync(CancellationToken ct)
