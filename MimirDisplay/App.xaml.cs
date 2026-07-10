@@ -26,6 +26,21 @@ public partial class App : Application
         // Load .env file FIRST (next to the exe or in CWD)
         LoadEnvFile();
 
+        // Show first-run wizard if .env is missing or MQTT broker is unconfigured.
+        // The wizard writes .env and reloads env vars before we build the host.
+        if (SetupWizardWindow.NeedsSetup())
+        {
+            var wizard = new SetupWizardWindow();
+            var completed = wizard.ShowDialog();
+            if (completed != true || !wizard.ConfigurationSaved)
+            {
+                // User closed without finishing — shutdown is already triggered
+                // by the wizard's Closing handler, but guard here too.
+                Shutdown();
+                return;
+            }
+        }
+
         // Configure Serilog early so startup messages are captured
         Log.Logger = new LoggerConfiguration()
             .WriteTo.Console()
