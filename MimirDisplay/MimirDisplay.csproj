@@ -21,11 +21,27 @@
     <Description>Mimir smart display client for Windows</Description>
     <Copyright>Copyright © 2026</Copyright>
 
-    <!-- Self-contained publish -->
+    <!-- Single-file deployment settings -->
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+
+    <!-- Single-file optimizations -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+
+    <!-- Performance optimizations -->
+    <PublishReadyToRun>false</PublishReadyToRun>
+
+    <!-- Trimming (disabled for WPF safety - can enable if tested thoroughly) -->
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+
+  <!-- Release-specific settings -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
 
   <ItemGroup>

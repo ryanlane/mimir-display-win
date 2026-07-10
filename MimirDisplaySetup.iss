@@ -3,9 +3,10 @@
 ; 
 ; INSTRUCTIONS:
 ; 1. Install Inno Setup
-; 2. Update the paths below to match your build output
-; 3. Open this file in Inno Setup Compiler
-; 4. Click Build → Compile to create setup.exe
+; 2. Run .\publish-single-file.ps1 to create the single-file EXE
+; 3. Replace {YOUR-GUID-HERE} below with a new GUID
+; 4. Open this file in Inno Setup Compiler
+; 5. Click Build → Compile to create setup.exe
 
 #define MyAppName "Mimir Display"
 #define MyAppVersion "1.0.0"
@@ -13,8 +14,8 @@
 #define MyAppURL "https://github.com/yourusername/mimir-display-win"
 #define MyAppExeName "MimirDisplay.exe"
 
-; Update this path to your actual publish output folder
-#define SourcePath "MimirDisplay\bin\Release\net8.0-windows\win-x64\publish"
+; Single-file publish output folder
+#define SourcePath "publish"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
@@ -50,16 +51,15 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 6.1; Check: not IsAdminInstallMode
 
 [Files]
-; Main executable
+; Single-file executable (contains all DLLs and dependencies)
 Source: "{#SourcePath}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Configuration files
-Source: "{#SourcePath}\.env"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourcePath}\.env"; DestDir: "{app}"; Flags: ignoreversion confirmoverwrite
 Source: "{#SourcePath}\appsettings.json"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('{#SourcePath}\appsettings.json'))
 
-; Any other files in the publish folder (if not using single-file publish)
-; Uncomment if you're not using PublishSingleFile:
-; Source: "{#SourcePath}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; NOTE: When using PublishSingleFile=true, you only need the .exe and config files.
+; All DLLs are bundled inside MimirDisplay.exe
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
