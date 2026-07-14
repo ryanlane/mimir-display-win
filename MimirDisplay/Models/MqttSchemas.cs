@@ -86,6 +86,37 @@ public sealed class MqttCommand
     [JsonPropertyName("refresh_interval_s")]
     public int? RefreshIntervalSeconds { get; set; }
 
+    // Optional content details (title/artist/etc) a channel attached to this
+    // render — see mimir-source-metart's X-Artwork-Metadata header, threaded
+    // through by the server's MQTT publisher. Values deserialize as
+    // JsonElement; use MetadataStrings() to read them as plain strings.
+    [JsonPropertyName("metadata")]
+    public Dictionary<string, object>? Metadata { get; set; }
+
+    /// <summary>
+    /// Metadata values arrive as boxed JsonElement (System.Text.Json default
+    /// behavior for Dictionary&lt;string, object&gt;). Converts them to plain
+    /// strings, skipping anything that isn't a JSON string.
+    /// </summary>
+    public Dictionary<string, string> MetadataStrings()
+    {
+        var result = new Dictionary<string, string>();
+        if (Metadata == null) return result;
+        foreach (var (key, value) in Metadata)
+        {
+            if (value is System.Text.Json.JsonElement el && el.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                var s = el.GetString();
+                if (!string.IsNullOrEmpty(s)) result[key] = s;
+            }
+            else if (value is string str && !string.IsNullOrEmpty(str))
+            {
+                result[key] = str;
+            }
+        }
+        return result;
+    }
+
     // Finalize registration fields
     [JsonPropertyName("display_id")]
     public string? DisplayId { get; set; }

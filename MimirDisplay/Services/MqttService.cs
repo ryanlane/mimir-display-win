@@ -415,7 +415,7 @@ public sealed class MqttService : IAsyncDisposable
             return;
         }
 
-        await DownloadAndDisplayAsync(url, cmd.AssignmentId, cmd.SceneId, cmd.SubchannelId);
+        await DownloadAndDisplayAsync(url, cmd.AssignmentId, cmd.SceneId, cmd.SubchannelId, cmd.MetadataStrings());
     }
 
     private async Task HandleDisplayImageAsync(MqttCommand cmd)
@@ -428,7 +428,7 @@ public sealed class MqttService : IAsyncDisposable
         }
 
         await PublishAckAsync(cmd.AssignmentId, null, ok: true, message: $"Displaying: {TruncateUrl(url)}");
-        await DownloadAndDisplayAsync(url, cmd.AssignmentId, null, null);
+        await DownloadAndDisplayAsync(url, cmd.AssignmentId, null, null, cmd.MetadataStrings());
     }
 
     private Task HandleSetSceneAsync(MqttCommand cmd)
@@ -493,7 +493,8 @@ public sealed class MqttService : IAsyncDisposable
         string url,
         string? assignmentId,
         string? sceneId,
-        string? subchannelId)
+        string? subchannelId,
+        Dictionary<string, string>? metadata = null)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         try
@@ -504,6 +505,7 @@ public sealed class MqttService : IAsyncDisposable
             if (sceneId != null) displayConfig["scene_id"] = sceneId;
             if (subchannelId != null) displayConfig["subchannel_id"] = subchannelId;
             if (assignmentId != null) displayConfig["assignment_id"] = assignmentId;
+            if (metadata != null && metadata.Count > 0) displayConfig["metadata"] = metadata;
 
             if (_onDisplayImage != null)
                 await _onDisplayImage(localPath, displayConfig);

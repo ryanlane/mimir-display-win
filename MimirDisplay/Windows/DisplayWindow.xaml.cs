@@ -2,6 +2,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -163,7 +164,12 @@ public partial class DisplayWindow : Window
     /// Handles PNG, JPEG, BMP, GIF (animated), and WebP (animated and static).
     /// Returns when the image has been loaded and displayed.
     /// </summary>
-    public Task ShowImageAsync(string filePath)
+    /// <param name="config">Optional per-assignment config (scene_id, subchannel_id,
+    /// assignment_id, metadata) forwarded from the MQTT command. The "metadata"
+    /// entry, when present, is a Dictionary&lt;string, string&gt; of content
+    /// details (title/artist/etc — see MqttCommand.MetadataStrings()) drawn as
+    /// an on-screen overlay.</param>
+    public Task ShowImageAsync(string filePath, Dictionary<string, object>? config = null)
     {
         var tcs = new TaskCompletionSource();
 
@@ -190,6 +196,14 @@ public partial class DisplayWindow : Window
 
                 // Update info overlay with new file details
                 UpdateInfoOverlay(filePath);
+
+                // Update artwork overlay (title/artist/etc, when the channel supplied it)
+                Dictionary<string, string>? metadata = null;
+                if (config != null && config.TryGetValue("metadata", out var metaObj) && metaObj is Dictionary<string, string> metaDict)
+                {
+                    metadata = metaDict;
+                }
+                UpdateArtworkOverlay(metadata);
 
                 tcs.SetResult();
             }
@@ -635,6 +649,102 @@ public partial class DisplayWindow : Window
             InfoOverlay.Visibility = _isInfoOverlayEnabled && !string.IsNullOrEmpty(_currentFilePath)
                 ? Visibility.Visible
                 : Visibility.Collapsed;
+        });
+    }
+
+    // Same field order/labels as the server-baked overlay (mimir-source-metart's
+    // _apply_overlay) and the Electron client, so a display looks the same
+    // whether the panel was baked into the image or rendered here client-side.
+    private static readonly (string Key, string Label)[] ArtworkMetaRows =
+    {
+        ("date", "Date"),
+        ("medium", "Medium"),
+        ("department", "Gallery"),
+        ("culture", "Culture"),
+    };
+
+    /// <summary>
+    /// Renders (or hides) the artwork details overlay. Always shown when
+    /// metadata is present — unlike the debug Info Overlay, this isn't
+    /// gated behind a toggle, since it's part of the content itself.
+    /// </summary>
+    private void UpdateArtworkOverlay(Dictionary<string, string>? metadata)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            ArtworkOverlayPanel.Children.Clear();
+
+            if (metadata == null || metadata.Count == 0)
+            {
+                ArtworkOverlay.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            bool anyRowAdded = false;
+
+            if (metadata.TryGetValue("title", out var title) && !string.IsNullOrWhiteSpace(title))
+            {
+                ArtworkOverlayPanel.Children.Add(new TextBlock
+                {
+                    Text = title,
+                    FontSize = 34,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = Brushes.White,
+                    TextWrapping = TextWrapping.NoWrap,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                });
+                anyRowAdded = true;
+            }
+
+            if (metadata.TryGetValue("artist", out var artist) && !string.IsNullOrWhiteSpace(artist))
+            {
+                ArtworkOverlayPanel.Children.Add(new TextBlock
+                {
+                    Text = artist,
+                    FontSize = 21,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xE6, 0xAA)),
+                    Margin = new Thickness(0, 4, 0, 0),
+                    TextWrapping = TextWrapping.NoWrap,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                });
+                anyRowAdded = true;
+            }
+
+            foreach (var (key, label) in ArtworkMetaRows)
+            {
+                if (metadata.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                {
+                    ArtworkOverlayPanel.Children.Add(new TextBlock
+                    {
+                        Text = $"{label.ToUpperInvariant()}   {value}",
+                        FontSize = 16,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0xBE, 0xBE, 0xBE)),
+                        Margin = new Thickness(0, 2, 0, 0),
+                        TextWrapping = TextWrapping.NoWrap,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                    });
+                    anyRowAdded = true;
+                }
+            }
+
+            if (!anyRowAdded)
+            {
+                ArtworkOverlay.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            metadata.TryGetValue("overlay_position", out var position);
+            (ArtworkOverlay.HorizontalAlignment, ArtworkOverlay.VerticalAlignment) = (position ?? "bottom_left") switch
+            {
+                "top_left" => (HorizontalAlignment.Left, VerticalAlignment.Top),
+                "top_right" => (HorizontalAlignment.Right, VerticalAlignment.Top),
+                "top_center" => (HorizontalAlignment.Center, VerticalAlignment.Top),
+                "bottom_right" => (HorizontalAlignment.Right, VerticalAlignment.Bottom),
+                "bottom_center" => (HorizontalAlignment.Center, VerticalAlignment.Bottom),
+                _ => (HorizontalAlignment.Left, VerticalAlignment.Bottom), // bottom_left default
+            };
+
+            ArtworkOverlay.Visibility = Visibility.Visible;
         });
     }
 

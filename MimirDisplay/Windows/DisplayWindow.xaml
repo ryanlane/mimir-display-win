@@ -249,6 +249,22 @@
             </StackPanel>
         </Border>
 
+        <!-- ── Artwork Overlay (content details a channel attached to the
+             render — e.g. mimir-source-metart's title/artist/etc). Shown
+             whenever present; not gated behind the Info Overlay toggle.
+             Position/content built dynamically in code-behind since the
+             field set and corner both vary per channel config. ──────────── -->
+        <Border x:Name="ArtworkOverlay"
+                Grid.Row="1"
+                Margin="24"
+                Background="#A6000000"
+                CornerRadius="6"
+                Padding="20"
+                MaxWidth="700"
+                Visibility="Collapsed">
+            <StackPanel x:Name="ArtworkOverlayPanel"/>
+        </Border>
+
     </Grid>
     </Grid>
 </Window>

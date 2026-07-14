@@ -22,7 +22,7 @@ public sealed class DisplayOrchestrator : BackgroundService
     private readonly ILogger<DisplayOrchestrator> _logger;
 
     // Set by WPF App after the window is created
-    private Func<string, Task>? _onShowImage;
+    private Func<string, Dictionary<string, object>, Task>? _onShowImage;
     private Action<string>? _onStatusText;
     private Action<string>? _onPairCode;
 
@@ -43,7 +43,7 @@ public sealed class DisplayOrchestrator : BackgroundService
     }
 
     public void SetCallbacks(
-        Func<string, Task> onShowImage,
+        Func<string, Dictionary<string, object>, Task> onShowImage,
         Action<string> onStatusText,
         Action<string> onPairCode)
     {
@@ -55,7 +55,7 @@ public sealed class DisplayOrchestrator : BackgroundService
         _mqtt.SetDisplayCallback(async (path, cfg) =>
         {
             if (_onShowImage != null)
-                await _onShowImage(path);
+                await _onShowImage(path, cfg);
         });
 
         _mqtt.SetStatusTextCallback(text => _onStatusText?.Invoke(text));

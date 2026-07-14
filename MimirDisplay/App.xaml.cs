@@ -121,7 +121,7 @@ public partial class App : Application
         // Wire display callbacks
         var orchestrator = _host.Services.GetRequiredService<DisplayOrchestrator>();
         orchestrator.SetCallbacks(
-            onShowImage: path => _window.ShowImageAsync(path),
+            onShowImage: (path, cfg) => _window.ShowImageAsync(path, cfg),
             onStatusText: text => _window.SetStatusText(text),
             onPairCode: code => _window.SetPairCode(code)
         );
