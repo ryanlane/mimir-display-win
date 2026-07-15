@@ -811,8 +811,10 @@ public partial class DisplayWindow : Window
 
             var fontScale = _config.ArtworkOverlayFontScale > 0 ? _config.ArtworkOverlayFontScale : 1.0;
             var wrapWidth = _config.ArtworkOverlayWrapWidth;
-            var wrapping = wrapWidth > 0 ? TextWrapping.Wrap : TextWrapping.NoWrap;
-            var trimming = wrapWidth > 0 ? TextTrimming.None : TextTrimming.CharacterEllipsis;
+            // Always wrap — the overlay border has a MaxWidth cap that already bounds the width.
+            // wrapWidth (when > 0) further constrains individual blocks via MaxWidth.
+            var wrapping = TextWrapping.Wrap;
+            var trimming = TextTrimming.None;
 
             if (metadata.TryGetValue("title", out var title) && !string.IsNullOrWhiteSpace(title))
             {
