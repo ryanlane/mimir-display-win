@@ -49,13 +49,19 @@ public partial class DisplayWindow : Window
     private List<int>? _webpDelays;
     private int _currentFrameIndex = 0;
 
-    // Info overlay state
+    // Info overlay state (technical/file details — filename, size, resolution, format)
     private bool _isInfoOverlayEnabled = false;
     private string? _currentFilePath;
     private long _currentFileSize;
     private int _currentImageWidth;
     private int _currentImageHeight;
     private int _currentFrameCount;
+
+    // Artwork overlay state (content details — title/artist/etc, when a channel
+    // supplies them). On by default: unlike the debug File Info Overlay, this
+    // is part of the content itself, not a diagnostic tool.
+    private bool _isArtworkOverlayEnabled = true;
+    private Dictionary<string, string>? _currentArtworkMetadata;
     private double _currentFps;
 
     public DisplayWindow(IOptions<DisplayConfig> config, ILogger<DisplayWindow> logger)
@@ -639,7 +645,14 @@ public partial class DisplayWindow : Window
     {
         _isInfoOverlayEnabled = MenuInfoOverlay.IsChecked;
         UpdateInfoOverlayVisibility();
-        _logger.LogInformation("Info overlay {State}", _isInfoOverlayEnabled ? "enabled" : "disabled");
+        _logger.LogInformation("File info overlay {State}", _isInfoOverlayEnabled ? "enabled" : "disabled");
+    }
+
+    private void MenuArtworkOverlay_Click(object sender, RoutedEventArgs e)
+    {
+        _isArtworkOverlayEnabled = MenuArtworkOverlay.IsChecked;
+        UpdateArtworkOverlay(_currentArtworkMetadata);
+        _logger.LogInformation("Artwork overlay {State}", _isArtworkOverlayEnabled ? "enabled" : "disabled");
     }
 
     private void UpdateInfoOverlayVisibility()
@@ -664,17 +677,20 @@ public partial class DisplayWindow : Window
     };
 
     /// <summary>
-    /// Renders (or hides) the artwork details overlay. Always shown when
-    /// metadata is present — unlike the debug Info Overlay, this isn't
-    /// gated behind a toggle, since it's part of the content itself.
+    /// Renders (or hides) the artwork details overlay. Shown by default
+    /// whenever metadata is present — it's part of the content itself, not
+    /// a diagnostic tool like the File Info Overlay — but toggleable via
+    /// View > Show Artwork Overlay for anyone who doesn't want it.
     /// </summary>
     private void UpdateArtworkOverlay(Dictionary<string, string>? metadata)
     {
+        _currentArtworkMetadata = metadata;
+
         Dispatcher.Invoke(() =>
         {
             ArtworkOverlayPanel.Children.Clear();
 
-            if (metadata == null || metadata.Count == 0)
+            if (!_isArtworkOverlayEnabled || metadata == null || metadata.Count == 0)
             {
                 ArtworkOverlay.Visibility = Visibility.Collapsed;
                 return;
@@ -682,31 +698,40 @@ public partial class DisplayWindow : Window
 
             bool anyRowAdded = false;
 
+            var fontScale = _config.ArtworkOverlayFontScale > 0 ? _config.ArtworkOverlayFontScale : 1.0;
+            var wrapWidth = _config.ArtworkOverlayWrapWidth;
+            var wrapping = wrapWidth > 0 ? TextWrapping.Wrap : TextWrapping.NoWrap;
+            var trimming = wrapWidth > 0 ? TextTrimming.None : TextTrimming.CharacterEllipsis;
+
             if (metadata.TryGetValue("title", out var title) && !string.IsNullOrWhiteSpace(title))
             {
-                ArtworkOverlayPanel.Children.Add(new TextBlock
+                var tb = new TextBlock
                 {
                     Text = title,
-                    FontSize = 34,
+                    FontSize = 34 * fontScale,
                     FontWeight = FontWeights.Bold,
                     Foreground = Brushes.White,
-                    TextWrapping = TextWrapping.NoWrap,
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                });
+                    TextWrapping = wrapping,
+                    TextTrimming = trimming,
+                };
+                if (wrapWidth > 0) tb.MaxWidth = wrapWidth;
+                ArtworkOverlayPanel.Children.Add(tb);
                 anyRowAdded = true;
             }
 
             if (metadata.TryGetValue("artist", out var artist) && !string.IsNullOrWhiteSpace(artist))
             {
-                ArtworkOverlayPanel.Children.Add(new TextBlock
+                var tb = new TextBlock
                 {
                     Text = artist,
-                    FontSize = 21,
+                    FontSize = 21 * fontScale,
                     Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xE6, 0xAA)),
                     Margin = new Thickness(0, 4, 0, 0),
-                    TextWrapping = TextWrapping.NoWrap,
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                });
+                    TextWrapping = wrapping,
+                    TextTrimming = trimming,
+                };
+                if (wrapWidth > 0) tb.MaxWidth = wrapWidth;
+                ArtworkOverlayPanel.Children.Add(tb);
                 anyRowAdded = true;
             }
 
@@ -714,15 +739,17 @@ public partial class DisplayWindow : Window
             {
                 if (metadata.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
                 {
-                    ArtworkOverlayPanel.Children.Add(new TextBlock
+                    var tb = new TextBlock
                     {
                         Text = $"{label.ToUpperInvariant()}   {value}",
-                        FontSize = 16,
+                        FontSize = 16 * fontScale,
                         Foreground = new SolidColorBrush(Color.FromRgb(0xBE, 0xBE, 0xBE)),
                         Margin = new Thickness(0, 2, 0, 0),
-                        TextWrapping = TextWrapping.NoWrap,
-                        TextTrimming = TextTrimming.CharacterEllipsis,
-                    });
+                        TextWrapping = wrapping,
+                        TextTrimming = trimming,
+                    };
+                    if (wrapWidth > 0) tb.MaxWidth = wrapWidth;
+                    ArtworkOverlayPanel.Children.Add(tb);
                     anyRowAdded = true;
                 }
             }
@@ -734,7 +761,10 @@ public partial class DisplayWindow : Window
             }
 
             metadata.TryGetValue("overlay_position", out var position);
-            (ArtworkOverlay.HorizontalAlignment, ArtworkOverlay.VerticalAlignment) = (position ?? "bottom_left") switch
+            var effectivePosition = !string.IsNullOrWhiteSpace(_config.ArtworkOverlayPositionOverride)
+                ? _config.ArtworkOverlayPositionOverride
+                : (position ?? "bottom_left");
+            (ArtworkOverlay.HorizontalAlignment, ArtworkOverlay.VerticalAlignment) = effectivePosition switch
             {
                 "top_left" => (HorizontalAlignment.Left, VerticalAlignment.Top),
                 "top_right" => (HorizontalAlignment.Right, VerticalAlignment.Top),

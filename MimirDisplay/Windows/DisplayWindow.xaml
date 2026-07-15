@@ -79,7 +79,8 @@
             <MenuItem Header="_View">
                 <MenuItem Header="Toggle _Fullscreen" InputGestureText="F11" Click="MenuToggleFullscreen_Click"/>
                 <Separator/>
-                <MenuItem x:Name="MenuInfoOverlay" Header="Show _Info Overlay" IsCheckable="True" Click="MenuInfoOverlay_Click"/>
+                <MenuItem x:Name="MenuInfoOverlay" Header="Show File _Info Overlay" IsCheckable="True" Click="MenuInfoOverlay_Click"/>
+                <MenuItem x:Name="MenuArtworkOverlay" Header="Show _Artwork Overlay" IsCheckable="True" IsChecked="True" Click="MenuArtworkOverlay_Click"/>
             </MenuItem>
             <MenuItem Header="_Help">
                 <MenuItem Header="_About" Click="MenuAbout_Click"/>

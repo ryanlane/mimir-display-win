@@ -68,6 +68,26 @@ public sealed class DisplayConfig
     public int WebhookPort { get; set; } = 8081;
     public string LogLevel { get; set; } = "Information";
 
+    // ── Artwork Overlay ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Font scale multiplier applied to all artwork overlay text (1.0 = default sizes).
+    /// </summary>
+    public double ArtworkOverlayFontScale { get; set; } = 1.0;
+
+    /// <summary>
+    /// Overrides the server-supplied overlay_position value.
+    /// Accepted values: top_left, top_center, top_right, bottom_left, bottom_center, bottom_right.
+    /// Empty string = use server setting (default).
+    /// </summary>
+    public string ArtworkOverlayPositionOverride { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Maximum pixel width for artwork overlay text before wrapping.
+    /// 0 = no wrapping (default).
+    /// </summary>
+    public int ArtworkOverlayWrapWidth { get; set; } = 0;
+
     // ── Derived helpers ───────────────────────────────────────────────────────
 
     public List<string> GetTags() =>

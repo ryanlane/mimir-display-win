@@ -90,6 +90,29 @@
                     <ComboBoxItem Content="fit"/>
                     <ComboBoxItem Content="fill"/>
                 </ComboBox>
+
+                <!-- Artwork Overlay Section -->
+                <TextBlock Text="Artwork Overlay" FontSize="14" FontWeight="Bold"
+                           Foreground="#4EC9B0" Margin="0,10,0,10"/>
+
+                <TextBlock Text="Font Scale (e.g. 1.0 = default, 1.5 = 50% larger)" Margin="0,0,0,4" FontSize="12" Foreground="#AAAAAA"/>
+                <TextBox x:Name="ArtworkFontScaleTextBox" Padding="8" Margin="0,0,0,15"
+                         Background="#3E3E42" Foreground="White" BorderBrush="#555"/>
+
+                <TextBlock Text="Position Override" Margin="0,0,0,4" FontSize="12" Foreground="#AAAAAA"/>
+                <ComboBox x:Name="ArtworkPositionComboBox" Margin="0,0,0,15" Style="{StaticResource DarkComboBox}">
+                    <ComboBoxItem Content="(use server setting)" Tag=""/>
+                    <ComboBoxItem Content="bottom_left"/>
+                    <ComboBoxItem Content="bottom_center"/>
+                    <ComboBoxItem Content="bottom_right"/>
+                    <ComboBoxItem Content="top_left"/>
+                    <ComboBoxItem Content="top_center"/>
+                    <ComboBoxItem Content="top_right"/>
+                </ComboBox>
+
+                <TextBlock Text="Text Wrap Width in pixels (0 = no wrap)" Margin="0,0,0,4" FontSize="12" Foreground="#AAAAAA"/>
+                <TextBox x:Name="ArtworkWrapWidthTextBox" Padding="8" Margin="0,0,0,15"
+                         Background="#3E3E42" Foreground="White" BorderBrush="#555"/>
             </StackPanel>
         </ScrollViewer>
 

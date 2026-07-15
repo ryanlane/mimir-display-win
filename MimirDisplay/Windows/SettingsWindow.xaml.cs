@@ -76,6 +76,9 @@ public partial class SettingsWindow : Window
             ["MIMIR__FULLSCREEN"] = "false",
             ["MIMIR__DISPLAYORIENTATION"] = "landscape",
             ["MIMIR__HDMISCALEMODE"] = "fit",
+            ["MIMIR__ARTWORKOVERLAYFONTSCALE"] = "1.0",
+            ["MIMIR__ARTWORKOVERLAYPOSITONOVERRIDE"] = "",
+            ["MIMIR__ARTWORKOVERLAYWRAPWIDTH"] = "0",
         };
     }
 
@@ -96,6 +99,10 @@ public partial class SettingsWindow : Window
 
         SelectComboItem(OrientationComboBox, GetSetting("MIMIR__DISPLAYORIENTATION"));
         SelectComboItem(ScaleModeComboBox, GetSetting("MIMIR__HDMISCALEMODE"));
+
+        ArtworkFontScaleTextBox.Text = GetSetting("MIMIR__ARTWORKOVERLAYFONTSCALE");
+        SelectArtworkPositionItem(GetSetting("MIMIR__ARTWORKOVERLAYPOSITONOVERRIDE"));
+        ArtworkWrapWidthTextBox.Text = GetSetting("MIMIR__ARTWORKOVERLAYWRAPWIDTH");
     }
 
     private string GetSetting(string key)
@@ -117,6 +124,20 @@ public partial class SettingsWindow : Window
             combo.SelectedIndex = 0;
     }
 
+    private void SelectArtworkPositionItem(string value)
+    {
+        foreach (ComboBoxItem item in ArtworkPositionComboBox.Items)
+        {
+            var tag = item.Tag?.ToString() ?? item.Content?.ToString() ?? "";
+            if (tag == value)
+            {
+                ArtworkPositionComboBox.SelectedItem = item;
+                return;
+            }
+        }
+        ArtworkPositionComboBox.SelectedIndex = 0;
+    }
+
     private void SaveSettings()
     {
         _settings["MIMIR__PLATFORMURL"] = PlatformUrlTextBox.Text.Trim();
@@ -133,6 +154,11 @@ public partial class SettingsWindow : Window
         _settings["MIMIR__FULLSCREEN"] = FullscreenCheckBox.IsChecked == true ? "true" : "false";
         _settings["MIMIR__DISPLAYORIENTATION"] = (OrientationComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "landscape";
         _settings["MIMIR__HDMISCALEMODE"] = (ScaleModeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "fit";
+
+        _settings["MIMIR__ARTWORKOVERLAYFONTSCALE"] = ArtworkFontScaleTextBox.Text.Trim();
+        var posItem = ArtworkPositionComboBox.SelectedItem as ComboBoxItem;
+        _settings["MIMIR__ARTWORKOVERLAYPOSITONOVERRIDE"] = posItem?.Tag?.ToString() ?? posItem?.Content?.ToString() ?? "";
+        _settings["MIMIR__ARTWORKOVERLAYWRAPWIDTH"] = ArtworkWrapWidthTextBox.Text.Trim();
 
         try
         {
@@ -158,6 +184,11 @@ public partial class SettingsWindow : Window
                 $"MIMIR__FULLSCREEN={_settings["MIMIR__FULLSCREEN"]}",
                 $"MIMIR__DISPLAYORIENTATION={_settings["MIMIR__DISPLAYORIENTATION"]}",
                 $"MIMIR__HDMISCALEMODE={_settings["MIMIR__HDMISCALEMODE"]}",
+                "",
+                "# ── Artwork Overlay ─────────────────────────────────────────────────────────",
+                $"MIMIR__ARTWORKOVERLAYFONTSCALE={_settings["MIMIR__ARTWORKOVERLAYFONTSCALE"]}",
+                $"MIMIR__ARTWORKOVERLAYPOSITONOVERRIDE={_settings["MIMIR__ARTWORKOVERLAYPOSITONOVERRIDE"]}",
+                $"MIMIR__ARTWORKOVERLAYWRAPWIDTH={_settings["MIMIR__ARTWORKOVERLAYWRAPWIDTH"]}",
             };
 
             File.WriteAllLines(_envPath, lines);
