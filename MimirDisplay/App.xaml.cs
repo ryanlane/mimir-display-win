@@ -100,12 +100,21 @@ public partial class App : Application
 
                 // WPF window registered as singleton so DI can resolve it
                 services.AddSingleton<DisplayWindow>();
+                services.AddSingleton<UpdateService>();
 
                 // HTTP client with polly-style retry via the factory
                 services.AddHttpClient(nameof(ContentService), client =>
                 {
                     client.Timeout = TimeSpan.FromSeconds(30);
                     client.DefaultRequestHeaders.Add("User-Agent", "MimirDisplay/1.0");
+                });
+
+                // HTTP client for GitHub API (User-Agent required by GitHub)
+                services.AddHttpClient(nameof(UpdateService), client =>
+                {
+                    client.Timeout = TimeSpan.FromSeconds(30);
+                    client.DefaultRequestHeaders.Add("User-Agent", "MimirDisplay-UpdateCheck/1.0");
+                    client.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
                 });
 
                 // Background hosted service

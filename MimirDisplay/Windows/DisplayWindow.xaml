@@ -85,6 +85,8 @@
             <MenuItem Header="_Help">
                 <MenuItem Header="_About" Click="MenuAbout_Click"/>
                 <Separator/>
+                <MenuItem Header="Check for _Updates..." Click="MenuCheckForUpdates_Click"/>
+                <Separator/>
                 <MenuItem Header="Device ID:" IsEnabled="False"/>
                 <MenuItem x:Name="MenuDeviceIdItem" Header="(loading...)" IsEnabled="False"/>
                 <MenuItem Header="Connection:" IsEnabled="False"/>

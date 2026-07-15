@@ -64,10 +64,13 @@ public partial class DisplayWindow : Window
     private Dictionary<string, string>? _currentArtworkMetadata;
     private double _currentFps;
 
-    public DisplayWindow(IOptions<DisplayConfig> config, ILogger<DisplayWindow> logger)
+    private readonly UpdateService _updateService;
+
+    public DisplayWindow(IOptions<DisplayConfig> config, ILogger<DisplayWindow> logger, UpdateService updateService)
     {
         _config = config.Value;
         _logger = logger;
+        _updateService = updateService;
         InitializeComponent();
         Loaded += OnLoaded;
         SizeChanged += OnSizeChanged;
@@ -88,6 +91,18 @@ public partial class DisplayWindow : Window
         LoadLogo();
         ApplyWindowMode();
         _logger.LogInformation("Window loaded. Press F11 to toggle fullscreen.");
+
+        // Background update check — fires 10 s after startup so it doesn't
+        // slow down initial connection or interrupt the splash screen.
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(10));
+            var update = await _updateService.CheckForUpdateAsync();
+            if (update is not null)
+            {
+                Dispatcher.Invoke(() => ShowUpdateNotification(update, silent: true));
+            }
+        });
     }
 
     private void ToggleFullscreen()
@@ -623,8 +638,7 @@ public partial class DisplayWindow : Window
 
     private void MenuAbout_Click(object sender, RoutedEventArgs e)
     {
-        var version = System.Reflection.Assembly.GetExecutingAssembly()
-            .GetName().Version?.ToString() ?? "Unknown";
+        var version = UpdateService.GetCurrentVersion();
 
         var deviceId = _mqttService?.DeviceId ?? "(none)";
         var pairCode = _mqttService?.PairCode ?? "(none)";
@@ -635,10 +649,107 @@ public partial class DisplayWindow : Window
                       $"Device ID: {deviceId}\n" +
                       $"Pair Code: {pairCode}\n" +
                       $"Connected: {connected}\n\n" +
-                      $"© 2026 Mimir Project";
+                      $"\u00A9 2026 Mimir Project";
 
         MessageBox.Show(message, "About Mimir Display",
             MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private async void MenuCheckForUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        var update = await _updateService.CheckForUpdateAsync();
+        if (update is null)
+        {
+            MessageBox.Show(
+                $"You are running the latest version ({UpdateService.GetCurrentVersion()}).",
+                "No Updates Available", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        ShowUpdateNotification(update, silent: false);
+    }
+
+    /// <summary>
+    /// Shows the update-available dialog. When <paramref name="silent"/> is true the
+    /// check was automatic; the dialog still asks the user what to do.
+    /// </summary>
+    private void ShowUpdateNotification(UpdateInfo update, bool silent)
+    {
+        var current = UpdateService.GetCurrentVersion();
+        var hasAsset = !string.IsNullOrEmpty(update.AssetDownloadUrl);
+
+        var body = $"A new version of Mimir Display is available!\n\n" +
+                   $"Current version:  {current}\n" +
+                   $"Latest version:   {update.LatestVersion}  ({update.TagName})\n\n" +
+                   (hasAsset
+                       ? "Would you like to download and install it now?\n\nChoose No to open the release page instead."
+                       : "Would you like to open the release page to download it?");
+
+        var buttons = hasAsset ? MessageBoxButton.YesNoCancel : MessageBoxButton.YesNo;
+        var result = MessageBox.Show(body, "Update Available", buttons, MessageBoxImage.Information);
+
+        if (hasAsset)
+        {
+            // Yes = download & install, No = open browser, Cancel = dismiss
+            if (result == MessageBoxResult.Yes)
+                _ = BeginInstallAsync(update);
+            else if (result == MessageBoxResult.No)
+                UpdateService.OpenReleasePage(update);
+        }
+        else
+        {
+            if (result == MessageBoxResult.Yes)
+                UpdateService.OpenReleasePage(update);
+        }
+    }
+
+    private async Task BeginInstallAsync(UpdateInfo update)
+    {
+        var progressWindow = new System.Windows.Window
+        {
+            Title = "Downloading Update",
+            Width = 340,
+            Height = 110,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = this,
+            ResizeMode = ResizeMode.NoResize,
+            Background = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(0x1E, 0x1E, 0x1E)),
+        };
+        var bar = new System.Windows.Controls.ProgressBar
+        {
+            Minimum = 0, Maximum = 100, IsIndeterminate = true,
+            Margin = new Thickness(20),
+            Foreground = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(0x00, 0xE8, 0x6A)),
+        };
+        progressWindow.Content = bar;
+        progressWindow.Show();
+
+        var progress = new Progress<int>(v =>
+        {
+            bar.IsIndeterminate = false;
+            bar.Value = v;
+        });
+
+        var success = await _updateService.DownloadAndInstallAsync(update, progress);
+        progressWindow.Close();
+
+        if (success)
+        {
+            MessageBox.Show(
+                "Update downloaded successfully.\n\nThe application will now close and restart with the new version.",
+                "Restarting", MessageBoxButton.OK, MessageBoxImage.Information);
+            Application.Current.Shutdown();
+        }
+        else
+        {
+            var retry = MessageBox.Show(
+                "The automatic update failed. Would you like to open the release page to download it manually?",
+                "Update Failed", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (retry == MessageBoxResult.Yes)
+                UpdateService.OpenReleasePage(update);
+        }
     }
 
     private void MenuInfoOverlay_Click(object sender, RoutedEventArgs e)
